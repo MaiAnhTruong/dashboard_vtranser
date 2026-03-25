@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VTranser User Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient-bg" aria-hidden="true"></div>
+    <div id="loginOverlay" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+      <div class="login-modal">
+        <h1 id="loginModalTitle" class="login-modal-title">Sign In</h1>
+        <p class="login-modal-text">VTranser Dashboard</p>
+
+        <form id="loginForm" class="auth-form" novalidate>
+          <label class="auth-field" for="loginUsername">
+            <span class="auth-field-label">Username</span>
+            <input id="loginUsername" name="username" type="text" autocomplete="username" />
+          </label>
+
+          <label class="auth-field" for="loginPassword">
+            <span class="auth-field-label">Password</span>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" />
+          </label>
+
+          <button class="btn btn-primary auth-submit" type="submit">Sign In</button>
+          <p id="loginError" class="auth-error hidden" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="app-layout">
+      <aside id="sidebarPanel" class="sidebar auth-sidebar reveal hidden" aria-label="Session panel">
+        <div id="authSession" class="auth-session hidden">
+          <div class="auth-session-card">
+            <p class="auth-session-label">Signed in as</p>
+            <p id="sessionUsername" class="auth-session-user">admin</p>
+          </div>
+          <button id="logoutBtn" class="btn auth-logout" type="button">Log Out</button>
+        </div>
+      </aside>
+
+      <main class="dashboard-shell">
+        <div id="dashboardContent" class="dashboard-content hidden">
+          <section class="grid-two reveal delay-1">
+            <article class="panel chart-panel">
+              <div class="chart-frame">
+                <div class="chart-frame-head">
+                  <h2 class="chart-frame-title">Number of Registrations by Day</h2>
+                </div>
+                <div id="dailyChart" class="daily-chart">
+                  <p class="empty-note">Loading data...</p>
+                </div>
+              </div>
+
+              <div class="chart-mini-grid">
+                <div class="chart-frame">
+                  <div class="subchart-head">
+                    <h3 class="subchart-title">Current User Snapshot</h3>
+                  </div>
+                  <div id="liveSessionPie" class="subchart-wrap pie-wrap">
+                    <p class="empty-note">Loading chart...</p>
+                  </div>
+                </div>
+
+                <div class="chart-frame">
+                  <div class="subchart-head">
+                    <h3 class="subchart-title">Login Status by Type</h3>
+                  </div>
+                  <div id="loginStatusPie" class="subchart-wrap pie-wrap">
+                    <p class="empty-note">Loading chart...</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="chart-frame">
+                <div class="subchart-head">
+                  <h3 class="subchart-title">Daily Active Users by Day</h3>
+                </div>
+                <div id="frequentUsersBar" class="subchart-wrap bar-wrap">
+                  <p class="empty-note">Loading chart...</p>
+                </div>
+              </div>
+
+              <div class="chart-frame">
+                <div class="subchart-head">
+                  <h3 class="subchart-title">Average Usage Time by Day</h3>
+                </div>
+                <div id="avgUsageChart" class="daily-chart usage-chart">
+                  <p class="empty-note">Loading chart...</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel distribution-panel">
+              <div class="distribution-block">
+                <div class="panel-header mini">
+                  <h3>Registration Summary</h3>
+                </div>
+                <div id="statusDistribution" class="distribution-list"></div>
+              </div>
+
+              <div class="distribution-block">
+                <div class="panel-header mini">
+                  <h3>Usage Summary</h3>
+                </div>
+                <div id="providerDistribution" class="distribution-list"></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="metric-grid reveal delay-3">
+            <article class="metric-card accent-teal">
+              <p class="metric-label">New Users Latest Day</p>
+              <p id="newTodayMetric" class="metric-value">-</p>
+              <p class="metric-footnote">Registrations on the latest reported day.</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Current Total Users</p>
+              <p id="totalUsersMetric" class="metric-value">-</p>
+              <p class="metric-footnote">Cumulative sum of all registrations in the text file.</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">New Users In Full Range</p>
+              <p id="rangeUsersMetric" class="metric-value">-</p>
+              <p id="rangeLabelMetric" class="metric-footnote">Current full file range.</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Avg New Users / Day</p>
+              <p id="dailyAvgMetric" class="metric-value">-</p>
+              <p class="metric-footnote">Average registrations across visible days.</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Daily Active Users</p>
+              <p id="activeUsersMetric" class="metric-value">-</p>
+              <p class="metric-footnote">Usage count on the latest reported day.</p>
+            </article>
+            <article class="metric-card accent-orange">
+              <p class="metric-label">Vs Previous Day</p>
+              <p id="dayDeltaMetric" class="metric-value">-</p>
+              <p class="metric-footnote">Latest registration delta compared to the previous day.</p>
+            </article>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="./config.js"></script>
+    <script src="./dd.js"></script>
+  </body>
+</html>
