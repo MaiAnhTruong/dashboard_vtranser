@@ -58,6 +58,17 @@ body {
   gap: 14px;
 }
 
+.login-brand {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.login-brand-copy {
+  min-width: 0;
+}
+
 .login-modal-title {
   margin: 0;
   font-size: clamp(1.7rem, 4vw, 2.2rem);
@@ -196,21 +207,12 @@ body {
   user-select: none;
 }
 
-.topbar,
 .panel,
 .metric-card {
   border: 1px solid var(--stroke);
   background: color-mix(in srgb, var(--card) 90%, #f2fbf8 10%);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-}
-
-.topbar {
-  padding: 24px 26px;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
 }
 
 .grid-two,
@@ -235,49 +237,27 @@ body {
   min-width: 0;
 }
 
-.brand-block h1 {
-  margin: 6px 0 0;
-  font-size: clamp(1.5rem, 2.3vw, 2.2rem);
-  letter-spacing: -0.02em;
+.brand-logo {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  box-shadow: 0 14px 28px rgba(10, 83, 76, 0.16);
+  overflow: hidden;
+  flex: 0 0 auto;
 }
 
-.eyebrow {
-  margin: 0;
-  font-size: 0.78rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--teal-deep);
-  font-weight: 700;
+.brand-logo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.subtitle {
-  margin: 10px 0 0;
-  color: var(--muted);
-  max-width: 560px;
+.brand-logo-hero {
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
 }
 
-.status-panel {
-  text-align: right;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 12px;
-  border-radius: 999px;
-  font-size: 0.86rem;
-  border: 1px solid var(--stroke);
-  font-weight: 600;
-}
-
-.pill .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #8ca1a8;
-  box-shadow: 0 0 0 4px rgba(116, 136, 143, 0.18);
-}
 
 .pill.online {
   color: #0f6d63;
@@ -552,6 +532,9 @@ button:focus {
   width: 220px;
   height: 208px;
   flex: 0 0 auto;
+  opacity: 0;
+  transform: translateY(12px) scale(0.985);
+  animation: pie-shell-in 0.58s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 .pie-track {
@@ -567,6 +550,7 @@ button:focus {
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: 120px 114px;
+  stroke-dashoffset: var(--arc-end, 0);
 }
 
 .pie-segment-local,
@@ -576,6 +560,7 @@ button:focus {
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: 120px 114px;
+  stroke-dashoffset: var(--arc-end, 0);
 }
 
 .pie-segment-local {
@@ -590,12 +575,16 @@ button:focus {
   fill: #173038;
   font-size: 22px;
   font-weight: 700;
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease 0.28s forwards;
 }
 
 .pie-center-bottom {
   fill: #4e666e;
   font-size: 12px;
   font-weight: 600;
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease 0.34s forwards;
 }
 
 .pie-legend {
@@ -610,6 +599,10 @@ button:focus {
   gap: 8px;
   color: #2a4047;
   font-size: 0.9rem;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: legend-rise 0.46s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc(180ms + var(--item-index, 0) * 70ms);
 }
 
 .pie-dot {
@@ -646,15 +639,24 @@ button:focus {
 .bar-grid {
   stroke: #dde8ec;
   stroke-width: 1;
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease forwards;
 }
 
 .bar-axis {
   stroke: #91a4ab;
   stroke-width: 1.6;
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease 0.08s forwards;
 }
 
 .bar-rect {
   fill: color-mix(in srgb, var(--teal) 72%, #ffffff 28%);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: bar-rise 0.56s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc(120ms + var(--item-index, 0) * 22ms);
 }
 
 .bar-rect:hover {
@@ -668,13 +670,23 @@ button:focus {
   stroke-linejoin: round;
   stroke-linecap: round;
   stroke-dasharray: 10 8;
-  opacity: 0.94;
+  --trend-opacity: 0.94;
+  opacity: 0;
+  transform: translateY(10px);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: trend-path-in 0.68s cubic-bezier(0.2, 0.8, 0.2, 1) 0.22s forwards;
 }
 
 .bar-trend-point {
   fill: #ffffff;
   stroke: #d14d57;
   stroke-width: 2.2;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: point-pop-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(280ms + var(--item-index, 0) * 24ms);
 }
 
 .bar-trend-point.is-latest {
@@ -721,6 +733,11 @@ button:focus {
 
 .line-area {
   fill: url(#chartAreaGradient);
+  opacity: 0;
+  transform: translateY(14px);
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: area-rise-in 0.64s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s forwards;
 }
 
 .line-path {
@@ -730,10 +747,16 @@ button:focus {
   stroke-linejoin: round;
   stroke-linecap: round;
   filter: url(#chartSoftGlow);
+  opacity: 0;
 }
 
 .usage-line-area {
   fill: url(#usageAreaGradient);
+  opacity: 0;
+  transform: translateY(14px);
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: area-rise-in 0.64s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s forwards;
 }
 
 .usage-line-path {
@@ -743,6 +766,7 @@ button:focus {
   stroke-linejoin: round;
   stroke-linecap: round;
   filter: url(#usageSoftGlow);
+  opacity: 0;
 }
 
 .trend-line-path {
@@ -752,18 +776,27 @@ button:focus {
   stroke-linejoin: round;
   stroke-linecap: round;
   stroke-dasharray: 10 8;
-  opacity: 0.92;
+  --trend-opacity: 0.92;
+  opacity: 0;
+  transform: translateY(10px);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: trend-path-in 0.68s cubic-bezier(0.2, 0.8, 0.2, 1) 0.22s forwards;
 }
 
 .chart-grid {
   stroke: #d8e5e8;
   stroke-width: 1;
   stroke-dasharray: 4 8;
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease forwards;
 }
 
 .chart-axis {
   stroke: #94a9af;
   stroke-width: 1.4;
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease 0.08s forwards;
 }
 
 .chart-point {
@@ -771,6 +804,11 @@ button:focus {
   stroke: #118f83;
   stroke-width: 2.4;
   cursor: pointer;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: point-pop-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(300ms + var(--item-index, 0) * 24ms);
   transition: transform 0.12s ease, fill 0.12s ease, stroke 0.12s ease;
 }
 
@@ -796,6 +834,11 @@ button:focus {
   stroke: #cf792f;
   stroke-width: 2.4;
   cursor: pointer;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: point-pop-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(300ms + var(--item-index, 0) * 24ms);
   transition: transform 0.12s ease, fill 0.12s ease, stroke 0.12s ease;
 }
 
@@ -846,6 +889,11 @@ button:focus {
   filter: drop-shadow(0 10px 22px rgba(18, 34, 40, 0.08));
 }
 
+.chart-legend {
+  opacity: 0;
+  animation: chart-fade-in 0.42s ease 0.16s forwards;
+}
+
 .chart-legend-line {
   stroke-width: 3;
   stroke-linecap: round;
@@ -877,9 +925,12 @@ button:focus {
 }
 
 .axis-text {
+  --fade-target: 1;
   font-size: 12px;
   fill: #64777d;
   font-family: "IBM Plex Mono", monospace;
+  opacity: 0;
+  animation: chart-fade-in 0.38s ease 0.1s forwards;
 }
 
 .axis-text-x {
@@ -891,19 +942,25 @@ button:focus {
 }
 
 .axis-text-x-alt {
+  --fade-target: 0.8;
   opacity: 0.8;
 }
 
 .axis-tick {
+  --fade-target: 1;
   stroke: #a4b7bd;
   stroke-width: 1;
+  opacity: 0;
+  animation: chart-fade-in 0.38s ease 0.14s forwards;
 }
 
 .axis-tick-minor {
+  --fade-target: 0.45;
   opacity: 0.45;
 }
 
 .axis-tick-major {
+  --fade-target: 0.9;
   opacity: 0.9;
 }
 
@@ -1076,6 +1133,157 @@ button:focus {
   }
 }
 
+@keyframes chart-fade-in {
+  to {
+    opacity: var(--fade-target, 1);
+  }
+}
+
+@keyframes area-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes point-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bar-rise {
+  from {
+    opacity: 0;
+    transform: scaleY(0.18);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes trend-path-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: var(--trend-opacity, 1);
+    transform: translateY(0);
+  }
+}
+
+@keyframes pie-shell-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes legend-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sweep-arc {
+  from {
+    opacity: 0.42;
+    stroke-dashoffset: var(--arc-start, 0);
+  }
+
+  to {
+    opacity: 1;
+    stroke-dashoffset: var(--arc-end, 0);
+  }
+}
+
+.line-path.is-path-animated,
+.usage-line-path.is-path-animated {
+  opacity: 1;
+  stroke-dasharray: var(--path-length, 0);
+  stroke-dashoffset: var(--path-length, 0);
+  animation: draw-line 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--path-delay, 0ms) forwards;
+}
+
+.pie-active.is-arc-animated,
+.pie-segment-local.is-arc-animated,
+.pie-segment-online.is-arc-animated {
+  animation: sweep-arc 1s cubic-bezier(0.22, 1, 0.36, 1) var(--arc-delay, 0ms) forwards;
+}
+
+.chart-motion-host:not(.chart-animating) .pie-chart-svg,
+.chart-motion-host:not(.chart-animating) .pie-center-top,
+.chart-motion-host:not(.chart-animating) .pie-center-bottom,
+.chart-motion-host:not(.chart-animating) .pie-legend-row,
+.chart-motion-host:not(.chart-animating) .bar-grid,
+.chart-motion-host:not(.chart-animating) .bar-axis,
+.chart-motion-host:not(.chart-animating) .bar-rect,
+.chart-motion-host:not(.chart-animating) .bar-trend-point,
+.chart-motion-host:not(.chart-animating) .line-area,
+.chart-motion-host:not(.chart-animating) .usage-line-area,
+.chart-motion-host:not(.chart-animating) .chart-grid,
+.chart-motion-host:not(.chart-animating) .chart-axis,
+.chart-motion-host:not(.chart-animating) .chart-point,
+.chart-motion-host:not(.chart-animating) .usage-chart-point,
+.chart-motion-host:not(.chart-animating) .chart-legend {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.chart-motion-host:not(.chart-animating) .bar-trend-line,
+.chart-motion-host:not(.chart-animating) .trend-line-path {
+  animation: none !important;
+  opacity: var(--trend-opacity, 1) !important;
+  transform: none !important;
+}
+
+.chart-motion-host:not(.chart-animating) .axis-text,
+.chart-motion-host:not(.chart-animating) .axis-tick {
+  animation: none !important;
+  opacity: var(--fade-target, 1) !important;
+}
+
+.chart-motion-host:not(.chart-animating) .line-path,
+.chart-motion-host:not(.chart-animating) .usage-line-path {
+  animation: none !important;
+  opacity: 1 !important;
+  stroke-dasharray: none !important;
+  stroke-dashoffset: 0 !important;
+}
+
+.chart-motion-host:not(.chart-animating) .pie-active,
+.chart-motion-host:not(.chart-animating) .pie-segment-local,
+.chart-motion-host:not(.chart-animating) .pie-segment-online {
+  animation: none !important;
+}
+
 @media (max-width: 1180px) {
   .app-layout {
     width: calc(100vw - 24px);
@@ -1110,6 +1318,38 @@ button:focus {
 
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .pie-chart-svg,
+  .pie-center-top,
+  .pie-center-bottom,
+  .pie-legend-row,
+  .bar-rect,
+  .bar-trend-line,
+  .bar-trend-point,
+  .line-area,
+  .line-path,
+  .usage-line-area,
+  .usage-line-path,
+  .trend-line-path,
+  .chart-grid,
+  .bar-grid,
+  .chart-axis,
+  .bar-axis,
+  .chart-point,
+  .usage-chart-point,
+  .chart-legend,
+  .axis-text,
+  .axis-tick,
+  .pie-active,
+  .pie-segment-local,
+  .pie-segment-online {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 @media (max-width: 780px) {
   .dashboard-shell {
     width: 100%;
@@ -1117,14 +1357,6 @@ button:focus {
 
   .app-layout {
     width: calc(100vw - 20px);
-  }
-
-  .topbar {
-    flex-direction: column;
-  }
-
-  .status-panel {
-    text-align: left;
   }
 
   .metric-grid {

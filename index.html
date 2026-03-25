@@ -3,21 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VTranser User Dashboard</title>
+    <title>VTranser Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="ambient-bg" aria-hidden="true"></div>
     <div id="loginOverlay" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
       <div class="login-modal">
-        <h1 id="loginModalTitle" class="login-modal-title">Sign In</h1>
-        <p class="login-modal-text">VTranser Dashboard</p>
+        <div class="login-brand">
+          <div class="brand-logo brand-logo-hero" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="presentation">
+              <defs>
+                <linearGradient id="brandGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#12b0a1"></stop>
+                  <stop offset="100%" stop-color="#0b6e65"></stop>
+                </linearGradient>
+              </defs>
+              <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#brandGradientLogin)"></rect>
+              <path d="M17 18 L28 46 L34 33 L41 46 L47 18" fill="none" stroke="#f6fffd" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>
+              <circle cx="48" cy="18" r="4" fill="#ffd8b2"></circle>
+            </svg>
+          </div>
+          <div class="login-brand-copy">
+            <p class="login-modal-text">Secure Access</p>
+            <h1 id="loginModalTitle" class="login-modal-title">VTranser Dashboard</h1>
+          </div>
+        </div>
 
         <form id="loginForm" class="auth-form" novalidate>
           <label class="auth-field" for="loginUsername">

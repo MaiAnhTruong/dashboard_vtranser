@@ -36,6 +36,7 @@
     autoRefresh: true,
     timerId: null,
     resizeTimerId: null,
+    lastVisibilityWakeAt: 0,
     loading: false,
     isAuthenticated: false,
     timezone: String(cfg.TIMEZONE || "Asia/Ho_Chi_Minh"),
@@ -68,10 +69,15 @@
     }
     window.addEventListener("resize", handleWindowResize);
     window.addEventListener("focus", () => {
-      if (state.isAuthenticated) refreshDashboard();
+      if (!state.isAuthenticated) return;
+      if (Date.now() - state.lastVisibilityWakeAt < 480) return;
+      refreshDashboard();
     });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && state.isAuthenticated) refreshDashboard();
+      if (document.visibilityState === "visible" && state.isAuthenticated) {
+        state.lastVisibilityWakeAt = Date.now();
+        refreshDashboard(false, true);
+      }
     });
   }
 
@@ -118,7 +124,7 @@
   }
 
   function startDashboardSession() {
-    refreshDashboard(true);
+    refreshDashboard(true, true);
     setupAutoRefresh();
   }
 
@@ -133,7 +139,7 @@
   function handleWindowResize() {
     if (!state.isAuthenticated || !state.days.length) return;
     clearTimeout(state.resizeTimerId);
-    state.resizeTimerId = setTimeout(() => renderDashboard(), 120);
+    state.resizeTimerId = setTimeout(() => renderDashboard(false), 120);
   }
 
   function showAuthError(message) {
@@ -152,19 +158,19 @@
     state.timerId = setInterval(() => refreshDashboard(), state.refreshSeconds * 1000);
   }
 
-  async function refreshDashboard(showToastOnError = false) {
+  async function refreshDashboard(showToastOnError = false, animateCharts = false) {
     if (!state.isAuthenticated || state.loading) return;
     state.loading = true;
     try {
       const payload = await loadPayload();
       state.days = payload.days;
       state.summary = payload.summary;
-      renderDashboard();
+      renderDashboard(animateCharts);
     } catch (error) {
       const hasExistingData = state.days.length > 0;
       if (!hasExistingData) {
         state.summary = emptySummary();
-        renderDashboard();
+        renderDashboard(false);
       }
       if (showToastOnError || !hasExistingData) {
         toast(`Dashboard refresh failed: ${error.message || error}`);
@@ -354,7 +360,7 @@
     };
   }
 
-  function renderDashboard() {
+  function renderDashboard(animateCharts = false) {
     if (!state.days.length) {
       renderMetrics({
         latestNewUsers: 0,
@@ -366,10 +372,10 @@
         rangeLabel: "No timeline data",
       });
       refs.dailyChart.innerHTML = `<p class="empty-note">No chart data.</p>`;
-      renderSnapshotPie(0, 0, "");
-      renderLoginStatusPie(0, 0, 0, "");
-      renderActiveBar([]);
-      renderUsageMinutesChart([]);
+      renderSnapshotPie(0, 0, "", animateCharts);
+      renderLoginStatusPie(0, 0, 0, "", animateCharts);
+      renderActiveBar([], animateCharts);
+      renderUsageMinutesChart([], "", animateCharts);
       renderSummaryStats(refs.statusDistribution, [], "No summary data");
       renderSummaryStats(refs.providerDistribution, [], "No summary data");
       return;
@@ -385,16 +391,17 @@
       dayDeltaText: buildDayDeltaText(state.summary.latestNewUsers, state.summary.previousNewUsers),
       rangeLabel: buildStaticRangeLabel(visibleDays),
     });
-    renderLineChart(toSeries(visibleDays, "newUsers"), "new users");
-    renderSnapshotPie(state.summary.latestDailyActiveUsers, state.summary.latestTotalUsers, state.summary.latestDateKey);
+    renderLineChart(toSeries(visibleDays, "newUsers"), "new users", animateCharts);
+    renderSnapshotPie(state.summary.latestDailyActiveUsers, state.summary.latestTotalUsers, state.summary.latestDateKey, animateCharts);
     renderLoginStatusPie(
       state.summary.latestLocalUsers,
       state.summary.latestOnlineUsers,
       state.summary.latestTotalUsers,
-      state.summary.latestDateKey
+      state.summary.latestDateKey,
+      animateCharts
     );
-    renderActiveBar(toSeries(visibleDays, "dailyActiveUsers"));
-    renderUsageMinutesChart(toSeries(visibleDays, "averageUsageMinutes"), "min");
+    renderActiveBar(toSeries(visibleDays, "dailyActiveUsers"), animateCharts);
+    renderUsageMinutesChart(toSeries(visibleDays, "averageUsageMinutes"), "min", animateCharts);
     renderSummaryStats(
       refs.statusDistribution,
       buildRegistrationSummary(rangeNewUsers, buildStaticRangeLabel(visibleDays)),
@@ -413,11 +420,13 @@
     refs.rangeLabelMetric.textContent = data.rangeLabel;
   }
 
-  function renderLineChart(series, unitLabel) {
+  function renderLineChart(series, unitLabel, animate = false) {
     if (!series.length) {
+      setChartAnimationState(refs.dailyChart, false);
       refs.dailyChart.innerHTML = `<p class="empty-note">No chart data.</p>`;
       return;
     }
+    setChartAnimationState(refs.dailyChart, animate);
     const trend = buildMovingAverageSeries(series, 3);
     const yAxis = buildNiceYAxis(series.map((item) => item.count), 7);
     const height = 512;
@@ -457,7 +466,7 @@
     const dots = points
       .map(
         (point, idx) => `
-        <circle class="chart-point ${idx === peakIndex ? "is-peak" : ""} ${idx === latestIndex ? "is-latest" : ""}" cx="${point.x}" cy="${point.y}" r="${
+        <circle class="chart-point ${idx === peakIndex ? "is-peak" : ""} ${idx === latestIndex ? "is-latest" : ""}" style="--item-index:${idx}" cx="${point.x}" cy="${point.y}" r="${
           idx === latestIndex ? 5.4 : idx === peakIndex ? 4.8 : 3.8
         }" tabindex="0" data-tooltip="${escapeHtml(
           `${point.tooltipLabel}: ${formatNumber(point.count)} ${unitLabel} | Trend (${trend.windowSize}d avg): ${formatNumber(
@@ -517,6 +526,12 @@
         ${xAxisMarkup}
       </svg>
     `;
+    if (animate) {
+      primeSvgMotion(refs.dailyChart, {
+        drawSelectors: [".line-path"],
+        arcSelectors: [],
+      });
+    }
     bindChartPointTooltips(refs.dailyChart, ".chart-point");
   }
 
@@ -627,8 +642,9 @@
     });
   }
 
-  function renderSnapshotPie(dailyActiveUsers, totalUsers, latestDateKey) {
+  function renderSnapshotPie(dailyActiveUsers, totalUsers, latestDateKey, animate = false) {
     if (!refs.liveSessionPie) return;
+    setChartAnimationState(refs.liveSessionPie, animate);
     const active = clampNumber(dailyActiveUsers, 0, 1000000000);
     const total = clampNumber(totalUsers, 0, 1000000000);
     const chartTotal = Math.max(total, active, 1);
@@ -645,21 +661,28 @@
       <div class="pie-chart-shell">
         <svg class="pie-chart-svg" viewBox="0 0 240 228" role="img" aria-label="Current user snapshot chart">
           <circle class="pie-track" cx="${cx}" cy="${cy}" r="${radius}"></circle>
-          <circle class="pie-active" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${activeArc} ${gapArc}"></circle>
+          <circle class="pie-active" style="--arc-end:0" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${activeArc} ${gapArc}"></circle>
           <text class="pie-center-top" x="${cx}" y="${cy - 3}" text-anchor="middle">${formatNumber(active)}/${formatNumber(total)}</text>
           <text class="pie-center-bottom" x="${cx}" y="${cy + 21}" text-anchor="middle">${formatNumber(percent, 1)}% Active</text>
         </svg>
         <div class="pie-legend">
-          <div class="pie-legend-row"><span class="pie-dot in-use"></span><span>Daily Active: ${formatNumber(active)}</span></div>
-          <div class="pie-legend-row"><span class="pie-dot available"></span><span>Inactive Now: ${formatNumber(inactive)}</span></div>
-          <div class="pie-legend-row"><span>Latest Report: ${escapeHtml(latestDateKey ? formatDayKeyLabel(latestDateKey) : "No data")}</span></div>
+          <div class="pie-legend-row" style="--item-index:0"><span class="pie-dot in-use"></span><span>Daily Active: ${formatNumber(active)}</span></div>
+          <div class="pie-legend-row" style="--item-index:1"><span class="pie-dot available"></span><span>Inactive Now: ${formatNumber(inactive)}</span></div>
+          <div class="pie-legend-row" style="--item-index:2"><span>Latest Report: ${escapeHtml(latestDateKey ? formatDayKeyLabel(latestDateKey) : "No data")}</span></div>
         </div>
       </div>
     `;
+    if (animate) {
+      primeSvgMotion(refs.liveSessionPie, {
+        drawSelectors: [],
+        arcSelectors: [".pie-active"],
+      });
+    }
   }
 
-  function renderLoginStatusPie(localUsers, onlineUsers, totalUsers, latestDateKey) {
+  function renderLoginStatusPie(localUsers, onlineUsers, totalUsers, latestDateKey, animate = false) {
     if (!refs.loginStatusPie) return;
+    setChartAnimationState(refs.loginStatusPie, animate);
     const total = clampNumber(totalUsers, 0, 1000000000);
     const local = clampNumber(localUsers, 0, 1000000000);
     const online = clampNumber(onlineUsers, 0, 1000000000);
@@ -678,11 +701,11 @@
       <div class="pie-chart-shell">
         <svg class="pie-chart-svg" viewBox="0 0 240 228" role="img" aria-label="Login status chart">
           <circle class="pie-track" cx="${cx}" cy="${cy}" r="${radius}"></circle>
-          <circle class="pie-segment-local" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${localArc} ${Math.max(
+          <circle class="pie-segment-local" style="--arc-end:0" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${localArc} ${Math.max(
             circumference - localArc,
             0
           )}"></circle>
-          <circle class="pie-segment-online" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${onlineArc} ${Math.max(
+          <circle class="pie-segment-online" style="--arc-end:${-localArc}" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${onlineArc} ${Math.max(
             circumference - onlineArc,
             0
           )}" stroke-dashoffset="${-localArc}"></circle>
@@ -690,20 +713,28 @@
           <text class="pie-center-bottom" x="${cx}" y="${cy + 21}" text-anchor="middle">Total Users</text>
         </svg>
         <div class="pie-legend">
-          <div class="pie-legend-row"><span class="pie-dot local-login"></span><span>Local: ${formatNumber(local)} (${formatNumber(localPercent, 1)}%)</span></div>
-          <div class="pie-legend-row"><span class="pie-dot online-login"></span><span>Online: ${formatNumber(online)} (${formatNumber(onlinePercent, 1)}%)</span></div>
-          <div class="pie-legend-row"><span>Latest Report: ${escapeHtml(latestDateKey ? formatDayKeyLabel(latestDateKey) : "No data")}</span></div>
+          <div class="pie-legend-row" style="--item-index:0"><span class="pie-dot local-login"></span><span>Local: ${formatNumber(local)} (${formatNumber(localPercent, 1)}%)</span></div>
+          <div class="pie-legend-row" style="--item-index:1"><span class="pie-dot online-login"></span><span>Online: ${formatNumber(online)} (${formatNumber(onlinePercent, 1)}%)</span></div>
+          <div class="pie-legend-row" style="--item-index:2"><span>Latest Report: ${escapeHtml(latestDateKey ? formatDayKeyLabel(latestDateKey) : "No data")}</span></div>
         </div>
       </div>
     `;
+    if (animate) {
+      primeSvgMotion(refs.loginStatusPie, {
+        drawSelectors: [],
+        arcSelectors: [".pie-segment-local", ".pie-segment-online"],
+      });
+    }
   }
 
-  function renderActiveBar(series) {
+  function renderActiveBar(series, animate = false) {
     if (!refs.frequentUsersBar) return;
     if (!series.length) {
+      setChartAnimationState(refs.frequentUsersBar, false);
       refs.frequentUsersBar.innerHTML = `<p class="empty-note">No chart data.</p>`;
       return;
     }
+    setChartAnimationState(refs.frequentUsersBar, animate);
     const trend = buildMovingAverageSeries(series, 3);
     const height = 356;
     const margin = { top: 18, right: 28, bottom: 92, left: 60 };
@@ -734,7 +765,7 @@
           1
         )}`;
         return `
-          <rect class="bar-rect" x="${x}" y="${y}" width="${barWidth}" height="${Math.max(barHeight, 0)}" rx="8" ry="8" tabindex="0" data-tooltip="${escapeHtml(
+          <rect class="bar-rect" style="--item-index:${idx}" x="${x}" y="${y}" width="${barWidth}" height="${Math.max(barHeight, 0)}" rx="8" ry="8" tabindex="0" data-tooltip="${escapeHtml(
             tooltipText
           )}">
             <title>${escapeHtml(tooltipText)}</title>
@@ -756,7 +787,7 @@
             1
           )}`;
           return `
-          <circle class="bar-trend-point ${idx === trendPoints.length - 1 ? "is-latest" : ""}" cx="${point.x}" cy="${point.y}" r="${
+          <circle class="bar-trend-point ${idx === trendPoints.length - 1 ? "is-latest" : ""}" style="--item-index:${idx}" cx="${point.x}" cy="${point.y}" r="${
             idx === trendPoints.length - 1 ? 4 : 3.2
           }" tabindex="0" data-tooltip="${escapeHtml(tooltipText)}">
             <title>${escapeHtml(tooltipText)}</title>
@@ -800,15 +831,23 @@
         ${xAxisMarkup}
       </svg>
     `;
+    if (animate) {
+      primeSvgMotion(refs.frequentUsersBar, {
+        drawSelectors: [],
+        arcSelectors: [],
+      });
+    }
     bindChartPointTooltips(refs.frequentUsersBar, ".bar-rect, .bar-trend-point");
   }
 
-  function renderUsageMinutesChart(series, unitLabel) {
+  function renderUsageMinutesChart(series, unitLabel, animate = false) {
     if (!refs.avgUsageChart) return;
     if (!series.length) {
+      setChartAnimationState(refs.avgUsageChart, false);
       refs.avgUsageChart.innerHTML = `<p class="empty-note">No chart data.</p>`;
       return;
     }
+    setChartAnimationState(refs.avgUsageChart, animate);
     const trend = buildMovingAverageSeries(series, 3);
     const yAxis = buildNiceYAxis(series.map((item) => item.count), 6);
     const height = 392;
@@ -847,7 +886,7 @@
     const dots = points
       .map(
         (point, idx) => `
-          <circle class="usage-chart-point ${idx === latestIndex ? "is-latest" : ""}" cx="${point.x}" cy="${point.y}" r="${
+          <circle class="usage-chart-point ${idx === latestIndex ? "is-latest" : ""}" style="--item-index:${idx}" cx="${point.x}" cy="${point.y}" r="${
             idx === latestIndex ? 5.2 : 3.6
           }" tabindex="0" data-tooltip="${escapeHtml(
             `${point.tooltipLabel}: ${formatNumber(point.count)} ${unitLabel} | Trend (${trend.windowSize}d avg): ${formatNumber(
@@ -909,6 +948,12 @@
         ${xAxisMarkup}
       </svg>
     `;
+    if (animate) {
+      primeSvgMotion(refs.avgUsageChart, {
+        drawSelectors: [".usage-line-path"],
+        arcSelectors: [],
+      });
+    }
     bindChartPointTooltips(refs.avgUsageChart, ".usage-chart-point");
   }
 
@@ -1081,6 +1126,52 @@
       })
       .join("");
     return `${minorTicks}${labels}`;
+  }
+
+  function primeSvgMotion(containerEl, options = {}) {
+    if (!containerEl || prefersReducedMotion()) return;
+
+    const drawSelectors = Array.isArray(options.drawSelectors) ? options.drawSelectors : [];
+    drawSelectors.forEach((selector, groupIndex) => {
+      const pathEls = containerEl.querySelectorAll(selector);
+      pathEls.forEach((pathEl, itemIndex) => {
+        if (typeof pathEl.getTotalLength !== "function") return;
+        try {
+          const pathLength = Math.max(1, Math.ceil(pathEl.getTotalLength()));
+          pathEl.style.setProperty("--path-length", String(pathLength));
+          pathEl.style.setProperty("--path-delay", `${120 + groupIndex * 120 + itemIndex * 40}ms`);
+          pathEl.classList.add("is-path-animated");
+        } catch (_error) {}
+      });
+    });
+
+    const arcSelectors = Array.isArray(options.arcSelectors) ? options.arcSelectors : [];
+    arcSelectors.forEach((selector, groupIndex) => {
+      const arcEls = containerEl.querySelectorAll(selector);
+      arcEls.forEach((arcEl, itemIndex) => {
+        const dashValues = String(arcEl.getAttribute("stroke-dasharray") || "")
+          .split(/[\s,]+/)
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value));
+        if (!dashValues.length) return;
+        const totalLength = dashValues.reduce((sum, value) => sum + value, 0);
+        const targetOffset = Number(arcEl.getAttribute("stroke-dashoffset") || 0);
+        arcEl.style.setProperty("--arc-start", String(targetOffset + totalLength));
+        arcEl.style.setProperty("--arc-end", String(targetOffset));
+        arcEl.style.setProperty("--arc-delay", `${160 + groupIndex * 120 + itemIndex * 90}ms`);
+        arcEl.classList.add("is-arc-animated");
+      });
+    });
+  }
+
+  function prefersReducedMotion() {
+    return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function setChartAnimationState(containerEl, shouldAnimate) {
+    if (!containerEl) return;
+    containerEl.classList.add("chart-motion-host");
+    containerEl.classList.toggle("chart-animating", Boolean(shouldAnimate) && !prefersReducedMotion());
   }
 
   function toast(message, ms = 3200) {
