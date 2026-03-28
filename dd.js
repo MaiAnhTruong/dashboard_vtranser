@@ -46,6 +46,7 @@
     displayStartDayKey: isDayKey(cfg.DISPLAY_START_DATE) ? String(cfg.DISPLAY_START_DATE) : "",
     days: [],
     summary: emptySummary(),
+    lastMetricsWarningKey: "",
     gpuTraffic: createGpuTrafficState(),
   };
 
@@ -178,6 +179,12 @@
       const payload = await loadPayload();
       state.days = payload.days;
       state.summary = payload.summary;
+      if (payload.warningText && payload.warningKey !== state.lastMetricsWarningKey) {
+        state.lastMetricsWarningKey = payload.warningKey;
+        toast(payload.warningText, 4200);
+      } else if (!payload.warningText) {
+        state.lastMetricsWarningKey = "";
+      }
       renderDashboard(animateCharts);
     } catch (error) {
       const hasExistingData = state.days.length > 0;
@@ -196,13 +203,59 @@
 
   async function loadPayload() {
     const text = await loadMetricsText();
-    const entries = parseMetricsText(text);
+    const parsed = parseMetricsText(text);
+    const entries = parsed.entries;
     const days = buildTimeline(entries);
-    return { days, summary: summarizeDays(days) };
+    const warningKey = parsed.warnings.join("|");
+    const warningText = parsed.warnings.length ? `Skipped invalid metric lines: ${parsed.warnings.join(" | ")}` : "";
+    return { days, summary: summarizeDays(days), warningKey, warningText };
   }
 
   async function loadMetricsText() {
-    return loadMetricsTextViaScript(state.dataFilePath);
+    const fetchErrorList = [];
+    try {
+      return await loadMetricsTextViaFetch(state.dataFilePath);
+    } catch (error) {
+      fetchErrorList.push(error);
+    }
+    if (window.location.protocol === "file:") {
+      try {
+        return await loadMetricsTextViaScript(state.dataFilePath);
+      } catch (error) {
+        fetchErrorList.push(error);
+      }
+    }
+    const detail = fetchErrorList
+      .map((error) => String(error?.message || error || "").trim())
+      .filter(Boolean)
+      .join(" | ");
+    throw new Error(detail || `Unable to load ${state.dataFilePath}.`);
+  }
+
+  async function loadMetricsTextViaFetch(path) {
+    const requestUrl = new URL(path, window.location.href);
+    requestUrl.searchParams.set("_ts", String(Date.now()));
+    const response = await fetch(requestUrl.toString(), {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      throw new Error(`Fetch failed for ${path} (${response.status}).`);
+    }
+    const rawText = await response.text();
+    return normalizeMetricsSource(rawText, path);
+  }
+
+  function normalizeMetricsSource(rawText, path) {
+    const source = String(rawText || "").replace(/^\uFEFF/, "");
+    const rawBlockMatch = source.match(/window\.VT_DAILY_METRICS_TEXT\s*=\s*String\.raw`([\s\S]*?)`;\s*$/);
+    if (rawBlockMatch) return rawBlockMatch[1];
+    const templateBlockMatch = source.match(/window\.VT_DAILY_METRICS_TEXT\s*=\s*`([\s\S]*?)`;\s*$/);
+    if (templateBlockMatch) return templateBlockMatch[1];
+    if (/\d{4}-\d{2}-\d{2}\s*\|/.test(source) || source.includes("# Format:")) {
+      return source;
+    }
+    throw new Error(`Unsupported data format in ${path}.`);
   }
 
   function loadMetricsTextViaScript(path) {
@@ -244,7 +297,7 @@
             reject(new Error(`Data file must define window.${globalKey} as a text block.`));
             return;
           }
-          resolve(text);
+          resolve(normalizeMetricsSource(text, path));
         };
         scriptEl.onerror = () => {
           scriptEl.remove();
@@ -260,6 +313,7 @@
 
   function parseMetricsText(text) {
     const byDay = new Map();
+    const warnings = [];
     const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/);
     for (let idx = 0; idx < lines.length; idx += 1) {
       const lineNo = idx + 1;
@@ -267,24 +321,30 @@
       if (!line || line.startsWith("#") || line.startsWith("//")) continue;
       const parts = line.split("|").map((part) => part.trim());
       if (parts.length < 6) {
-        throw new Error(
-          `Invalid format at line ${lineNo}. Use: YYYY-MM-DD | new_users | daily_active_users | local_users | online_users | avg_usage_minutes`
-        );
+        warnings.push(`line ${lineNo} format`);
+        continue;
       }
       const dayKey = parts[0];
-      if (!isDayKey(dayKey)) throw new Error(`Invalid date at line ${lineNo}: "${dayKey}"`);
-      byDay.set(dayKey, {
-        dayKey,
-        newUsers: parseCount(parts[1], "new_users", lineNo),
-        dailyActiveUsers: parseCount(parts[2], "daily_active_users", lineNo),
-        localUsers: parseCount(parts[3], "local_users", lineNo),
-        onlineUsers: parseCount(parts[4], "online_users", lineNo),
-        averageUsageMinutes: parseCount(parts[5], "avg_usage_minutes", lineNo),
-      });
+      if (!isDayKey(dayKey)) {
+        warnings.push(`line ${lineNo} date`);
+        continue;
+      }
+      try {
+        byDay.set(dayKey, {
+          dayKey,
+          newUsers: parseCount(parts[1], "new_users", lineNo),
+          dailyActiveUsers: parseCount(parts[2], "daily_active_users", lineNo),
+          localUsers: parseCount(parts[3], "local_users", lineNo),
+          onlineUsers: parseCount(parts[4], "online_users", lineNo),
+          averageUsageMinutes: parseCount(parts[5], "avg_usage_minutes", lineNo),
+        });
+      } catch (_error) {
+        warnings.push(`line ${lineNo} value`);
+      }
     }
     const entries = [...byDay.values()].sort((a, b) => a.dayKey.localeCompare(b.dayKey));
     if (!entries.length) throw new Error(`No valid daily metrics found in ${state.dataFilePath}.`);
-    return entries;
+    return { entries, warnings };
   }
 
   function parseCount(raw, field, lineNo) {
@@ -416,12 +476,16 @@
       gpu.canvas = refs.gpuTrafficCanvas;
       gpu.ctx = gpu.canvas.getContext("2d", { alpha: true });
     }
-    if (!gpu.ctx) return;
+    if (!gpu.ctx) {
+      refs.gpuTrafficChart.classList.remove("is-enhanced");
+      return;
+    }
     resizeGpuTrafficVisualizer();
     if (!gpu.series.length) {
       seedGpuTrafficSeries();
     }
     drawGpuTrafficVisualizer();
+    refs.gpuTrafficChart.classList.add("is-enhanced");
     updateGpuTrafficMetrics(true);
     startGpuTrafficVisualizerLoop();
   }
@@ -612,7 +676,7 @@
           : { label: "Elevated", badgeClass: "gpu-badge gpu-badge-alert" };
 
     if (refs.gpuMetricLoad) refs.gpuMetricLoad.textContent = `${formatNumber(compositeLoad * 100)}%`;
-    if (refs.gpuMetricPeak) refs.gpuMetricPeak.textContent = `L${peakIndex + 1} · ${formatNumber(peakValue * 100)}%`;
+    if (refs.gpuMetricPeak) refs.gpuMetricPeak.textContent = `L${peakIndex + 1} | ${formatNumber(peakValue * 100)}%`;
     if (refs.gpuMetricStability) refs.gpuMetricStability.textContent = stability.label;
     if (refs.gpuMetricCadence) refs.gpuMetricCadence.textContent = `${formatNumber(gpu.stepMs)} ms`;
     if (refs.gpuMetricWindow) refs.gpuMetricWindow.textContent = `${formatNumber(windowSeconds)} s`;
@@ -621,7 +685,7 @@
       refs.gpuStatusBadge.textContent = stability.label;
     }
     if (refs.gpuLaneBadge) refs.gpuLaneBadge.textContent = `${formatNumber(gpu.series.length)} lanes`;
-    if (refs.gpuTrafficMeta) refs.gpuTrafficMeta.textContent = `Spread ${formatNumber(spread * 100)}% · Drift ${formatNumber(drift * 100, 1)} pts`;
+    if (refs.gpuTrafficMeta) refs.gpuTrafficMeta.textContent = `Spread ${formatNumber(spread * 100)}% | Drift ${formatNumber(drift * 100, 1)} pts`;
   }
 
   function nextGpuTrafficValue(series) {

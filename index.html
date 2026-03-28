@@ -10,8 +10,8 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg?v=20260328-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260328-5" />
   </head>
   <body>
     <div class="ambient-bg" aria-hidden="true"></div>
@@ -82,6 +82,30 @@
 
                 <div class="gpu-traffic-shell">
                   <div id="gpuTrafficChart" class="gpu-traffic-wrap">
+                    <div class="gpu-traffic-fallback" aria-hidden="true">
+                      <svg class="gpu-traffic-fallback-svg" viewBox="0 0 1000 260" preserveAspectRatio="none">
+                        <g class="gpu-fallback-group gpu-fallback-group-1">
+                          <path class="gpu-fallback-lane gpu-fallback-lane-1" d="M-30 86 C 38 76, 92 104, 156 96 S 274 82, 344 90 S 490 112, 564 104 S 708 90, 786 98 S 924 120, 1034 112"></path>
+                          <circle class="gpu-fallback-dot gpu-fallback-dot-1" cx="984" cy="112" r="4.5"></circle>
+                        </g>
+                        <g class="gpu-fallback-group gpu-fallback-group-2">
+                          <path class="gpu-fallback-lane gpu-fallback-lane-2" d="M-24 108 C 46 120, 112 90, 178 104 S 312 134, 390 124 S 544 98, 622 110 S 758 136, 834 126 S 944 102, 1034 96"></path>
+                          <circle class="gpu-fallback-dot gpu-fallback-dot-2" cx="984" cy="96" r="4.5"></circle>
+                        </g>
+                        <g class="gpu-fallback-group gpu-fallback-group-3">
+                          <path class="gpu-fallback-lane gpu-fallback-lane-3" d="M-32 132 C 44 126, 102 150, 170 146 S 314 120, 394 128 S 520 158, 606 150 S 760 124, 838 136 S 942 164, 1036 154"></path>
+                          <circle class="gpu-fallback-dot gpu-fallback-dot-3" cx="984" cy="154" r="4.5"></circle>
+                        </g>
+                        <g class="gpu-fallback-group gpu-fallback-group-4">
+                          <path class="gpu-fallback-lane gpu-fallback-lane-4" d="M-36 164 C 44 176, 98 146, 174 156 S 302 188, 392 182 S 524 150, 612 162 S 744 188, 830 176 S 932 146, 1036 156"></path>
+                          <circle class="gpu-fallback-dot gpu-fallback-dot-4" cx="984" cy="156" r="4.5"></circle>
+                        </g>
+                        <g class="gpu-fallback-group gpu-fallback-group-5">
+                          <path class="gpu-fallback-lane gpu-fallback-lane-5" d="M-28 204 C 58 192, 118 214, 194 206 S 346 180, 422 194 S 554 218, 644 208 S 780 178, 858 190 S 952 220, 1038 210"></path>
+                          <circle class="gpu-fallback-dot gpu-fallback-dot-5" cx="984" cy="210" r="4.5"></circle>
+                        </g>
+                      </svg>
+                    </div>
                     <canvas id="gpuTrafficCanvas" class="gpu-traffic-canvas" aria-label="Animated GPU traffic flow chart"></canvas>
                   </div>
 
@@ -113,7 +137,7 @@
                       </article>
                     </div>
 
-                    <p id="gpuTrafficMeta" class="gpu-traffic-meta">Spread - · Drift -</p>
+                    <p id="gpuTrafficMeta" class="gpu-traffic-meta">Spread - | Drift -</p>
                   </aside>
                 </div>
               </div>
@@ -190,7 +214,7 @@
 
     <div id="toast" class="toast hidden"></div>
 
-    <script src="./config.js"></script>
-    <script src="./dd.js"></script>
+    <script src="./config.js?v=20260328-5"></script>
+    <script src="./dd.js?v=20260328-5"></script>
   </body>
 </html>

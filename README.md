@@ -23,7 +23,8 @@ Then open `http://localhost:8081`.
 
 ## Data File Format
 
-`daily_metrics.txt` is loaded directly by the browser, including when opening `index.html` with `file://`.
+`daily_metrics.txt` is fetched directly by the browser on static hosts such as GitHub Pages.
+When opening `index.html` with `file://`, the dashboard falls back to the legacy script-based loader.
 Keep the first line and the last closing backtick line as-is. The daily data stays as plain line-based text inside that block.
 
 Skeleton:
