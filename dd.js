@@ -16,20 +16,22 @@
     sessionUsername: document.getElementById("sessionUsername"),
     logoutBtn: document.getElementById("logoutBtn"),
     dashboardContent: document.getElementById("dashboardContent"),
-    newTodayMetric: document.getElementById("newTodayMetric"),
-    totalUsersMetric: document.getElementById("totalUsersMetric"),
-    rangeUsersMetric: document.getElementById("rangeUsersMetric"),
-    dailyAvgMetric: document.getElementById("dailyAvgMetric"),
-    activeUsersMetric: document.getElementById("activeUsersMetric"),
-    dayDeltaMetric: document.getElementById("dayDeltaMetric"),
-    rangeLabelMetric: document.getElementById("rangeLabelMetric"),
     dailyChart: document.getElementById("dailyChart"),
-    liveSessionPie: document.getElementById("liveSessionPie"),
-    loginStatusPie: document.getElementById("loginStatusPie"),
+    totalRegistrationsPie: document.getElementById("totalRegistrationsPie"),
+    avgDailyUsersPie: document.getElementById("avgDailyUsersPie"),
+    avgUsagePie: document.getElementById("avgUsagePie"),
     frequentUsersBar: document.getElementById("frequentUsersBar"),
     avgUsageChart: document.getElementById("avgUsageChart"),
-    statusDistribution: document.getElementById("statusDistribution"),
-    providerDistribution: document.getElementById("providerDistribution"),
+    gpuTrafficChart: document.getElementById("gpuTrafficChart"),
+    gpuTrafficCanvas: document.getElementById("gpuTrafficCanvas"),
+    gpuStatusBadge: document.getElementById("gpuStatusBadge"),
+    gpuLaneBadge: document.getElementById("gpuLaneBadge"),
+    gpuMetricLoad: document.getElementById("gpuMetricLoad"),
+    gpuMetricPeak: document.getElementById("gpuMetricPeak"),
+    gpuMetricStability: document.getElementById("gpuMetricStability"),
+    gpuMetricCadence: document.getElementById("gpuMetricCadence"),
+    gpuMetricWindow: document.getElementById("gpuMetricWindow"),
+    gpuTrafficMeta: document.getElementById("gpuTrafficMeta"),
   };
   const state = {
     refreshSeconds: 30,
@@ -44,6 +46,7 @@
     displayStartDayKey: isDayKey(cfg.DISPLAY_START_DATE) ? String(cfg.DISPLAY_START_DATE) : "",
     days: [],
     summary: emptySummary(),
+    gpuTraffic: createGpuTrafficState(),
   };
 
   init();
@@ -74,9 +77,14 @@
       refreshDashboard();
     });
     document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") {
+        stopGpuTrafficVisualizer();
+        return;
+      }
       if (document.visibilityState === "visible" && state.isAuthenticated) {
         state.lastVisibilityWakeAt = Date.now();
         refreshDashboard(false, true);
+        startGpuTrafficVisualizer();
       }
     });
   }
@@ -126,6 +134,7 @@
   function startDashboardSession() {
     refreshDashboard(true, true);
     setupAutoRefresh();
+    startGpuTrafficVisualizer();
   }
 
   function stopDashboardSession() {
@@ -133,13 +142,17 @@
       clearInterval(state.timerId);
       state.timerId = null;
     }
+    stopGpuTrafficVisualizer();
     state.loading = false;
   }
 
   function handleWindowResize() {
-    if (!state.isAuthenticated || !state.days.length) return;
+    if (!state.isAuthenticated) return;
     clearTimeout(state.resizeTimerId);
-    state.resizeTimerId = setTimeout(() => renderDashboard(false), 120);
+    state.resizeTimerId = setTimeout(() => {
+      renderDashboard(false);
+      resizeGpuTrafficVisualizer();
+    }, 120);
   }
 
   function showAuthError(message) {
@@ -362,62 +375,593 @@
 
   function renderDashboard(animateCharts = false) {
     if (!state.days.length) {
-      renderMetrics({
-        latestNewUsers: 0,
-        latestTotalUsers: 0,
-        rangeNewUsers: 0,
-        averagePerBucket: 0,
-        latestDailyActiveUsers: 0,
-        dayDeltaText: "0",
-        rangeLabel: "No timeline data",
-      });
+      setChartAnimationState(refs.dailyChart, false);
       refs.dailyChart.innerHTML = `<p class="empty-note">No chart data.</p>`;
-      renderSnapshotPie(0, 0, "", animateCharts);
-      renderLoginStatusPie(0, 0, 0, "", animateCharts);
+      renderTotalRegistrationsPie(0, "", animateCharts);
+      renderAverageDailyUsersPie(0, 0, "", 0, animateCharts);
+      renderAverageUsageInsightPie(0, 0, "", 0, "", 0, animateCharts);
       renderActiveBar([], animateCharts);
       renderUsageMinutesChart([], "", animateCharts);
-      renderSummaryStats(refs.statusDistribution, [], "No summary data");
-      renderSummaryStats(refs.providerDistribution, [], "No summary data");
+      ensureGpuTrafficVisualizer();
       return;
     }
     const visibleDays = state.days.slice();
-    const rangeNewUsers = sumBy(visibleDays, "newUsers");
-    renderMetrics({
-      latestNewUsers: state.summary.latestNewUsers,
-      latestTotalUsers: state.summary.latestTotalUsers,
-      rangeNewUsers,
-      averagePerBucket: visibleDays.length ? rangeNewUsers / visibleDays.length : 0,
-      latestDailyActiveUsers: state.summary.latestDailyActiveUsers,
-      dayDeltaText: buildDayDeltaText(state.summary.latestNewUsers, state.summary.previousNewUsers),
-      rangeLabel: buildStaticRangeLabel(visibleDays),
-    });
     renderLineChart(toSeries(visibleDays, "newUsers"), "new users", animateCharts);
-    renderSnapshotPie(state.summary.latestDailyActiveUsers, state.summary.latestTotalUsers, state.summary.latestDateKey, animateCharts);
-    renderLoginStatusPie(
-      state.summary.latestLocalUsers,
-      state.summary.latestOnlineUsers,
-      state.summary.latestTotalUsers,
+    renderTotalRegistrationsPie(state.summary.latestTotalUsers, state.summary.latestDateKey, animateCharts);
+    renderAverageDailyUsersPie(
+      state.summary.averageDailyActiveUsers,
+      state.summary.peakDailyActiveUsers,
+      state.summary.peakDailyActiveDateKey,
+      state.summary.trackedDays,
+      animateCharts
+    );
+    renderAverageUsageInsightPie(
+      state.summary.averageUsageMinutes,
+      state.summary.peakAverageUsageMinutes,
+      state.summary.peakAverageUsageDateKey,
+      state.summary.latestAverageUsageMinutes,
       state.summary.latestDateKey,
+      state.summary.trackedDays,
       animateCharts
     );
     renderActiveBar(toSeries(visibleDays, "dailyActiveUsers"), animateCharts);
     renderUsageMinutesChart(toSeries(visibleDays, "averageUsageMinutes"), "min", animateCharts);
-    renderSummaryStats(
-      refs.statusDistribution,
-      buildRegistrationSummary(rangeNewUsers, buildStaticRangeLabel(visibleDays)),
-      "No summary data"
-    );
-    renderSummaryStats(refs.providerDistribution, buildUsageSummary(), "No summary data");
+    ensureGpuTrafficVisualizer();
   }
 
-  function renderMetrics(data) {
-    refs.newTodayMetric.textContent = formatNumber(data.latestNewUsers);
-    refs.totalUsersMetric.textContent = formatNumber(data.latestTotalUsers);
-    refs.rangeUsersMetric.textContent = formatNumber(data.rangeNewUsers);
-    refs.dailyAvgMetric.textContent = formatNumber(data.averagePerBucket, 1);
-    refs.activeUsersMetric.textContent = formatNumber(data.latestDailyActiveUsers);
-    refs.dayDeltaMetric.textContent = data.dayDeltaText;
-    refs.rangeLabelMetric.textContent = data.rangeLabel;
+  function ensureGpuTrafficVisualizer() {
+    if (!refs.gpuTrafficChart || !refs.gpuTrafficCanvas) return;
+    const gpu = state.gpuTraffic;
+    if (!gpu.canvas || gpu.canvas !== refs.gpuTrafficCanvas) {
+      gpu.canvas = refs.gpuTrafficCanvas;
+      gpu.ctx = gpu.canvas.getContext("2d", { alpha: true });
+    }
+    if (!gpu.ctx) return;
+    resizeGpuTrafficVisualizer();
+    if (!gpu.series.length) {
+      seedGpuTrafficSeries();
+    }
+    drawGpuTrafficVisualizer();
+    updateGpuTrafficMetrics(true);
+    startGpuTrafficVisualizerLoop();
+  }
+
+  function startGpuTrafficVisualizer() {
+    ensureGpuTrafficVisualizer();
+  }
+
+  function startGpuTrafficVisualizerLoop() {
+    const gpu = state.gpuTraffic;
+    if (!gpu.ctx || !state.isAuthenticated || document.visibilityState !== "visible" || prefersReducedMotion()) {
+      return;
+    }
+    if (gpu.rafId) return;
+    gpu.lastFrameAt = performance.now();
+    gpu.rafId = requestAnimationFrame(stepGpuTrafficVisualizer);
+  }
+
+  function stopGpuTrafficVisualizer() {
+    const gpu = state.gpuTraffic;
+    if (gpu.rafId) {
+      cancelAnimationFrame(gpu.rafId);
+      gpu.rafId = 0;
+    }
+    gpu.lastFrameAt = 0;
+  }
+
+  function stepGpuTrafficVisualizer(timestamp) {
+    const gpu = state.gpuTraffic;
+    if (!gpu.ctx || !state.isAuthenticated || document.visibilityState !== "visible") {
+      stopGpuTrafficVisualizer();
+      return;
+    }
+    if (!gpu.lastFrameAt) gpu.lastFrameAt = timestamp;
+    const delta = Math.max(0, Math.min(64, timestamp - gpu.lastFrameAt));
+    gpu.lastFrameAt = timestamp;
+    const speedPxPerMs = gpu.sampleGap / gpu.stepMs;
+    gpu.scrollOffset += delta * speedPxPerMs;
+    let stepCount = 0;
+    while (gpu.scrollOffset >= gpu.sampleGap) {
+      gpu.scrollOffset -= gpu.sampleGap;
+      stepCount += 1;
+    }
+    if (stepCount > 0) {
+      advanceGpuTrafficSeries(stepCount);
+    }
+    drawGpuTrafficVisualizer();
+    updateGpuTrafficMetrics();
+    gpu.rafId = requestAnimationFrame(stepGpuTrafficVisualizer);
+  }
+
+  function resizeGpuTrafficVisualizer() {
+    const gpu = state.gpuTraffic;
+    const host = refs.gpuTrafficChart;
+    const canvas = refs.gpuTrafficCanvas;
+    if (!host || !canvas || !gpu.ctx) return;
+    const width = Math.max(320, Math.floor(host.clientWidth || 0));
+    const height = Math.max(220, Math.floor(host.clientHeight || 0));
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+    const nextGap = Math.round(clamp(width / 44, 16, 24));
+    const needsResize = gpu.width !== width || gpu.height !== height || gpu.dpr !== dpr || gpu.sampleGap !== nextGap;
+    if (!needsResize) return;
+    gpu.width = width;
+    gpu.height = height;
+    gpu.dpr = dpr;
+    gpu.sampleGap = nextGap;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    gpu.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gpu.ctx.imageSmoothingEnabled = true;
+    seedGpuTrafficSeries();
+    updateGpuTrafficMetrics(true);
+  }
+
+  function seedGpuTrafficSeries() {
+    const gpu = state.gpuTraffic;
+    if (!gpu.width || !gpu.height) return;
+    const sampleCount = Math.max(28, Math.ceil(gpu.width / Math.max(gpu.sampleGap, 1)) + 8);
+    const palette = [
+      {
+        stroke: "#67f0c8",
+        fillTop: "rgba(103, 240, 200, 0.18)",
+        fillBottom: "rgba(103, 240, 200, 0.01)",
+        glow: "rgba(103, 240, 200, 0.34)",
+        baseline: 0.18,
+        amplitude: 0.09,
+        secondary: 0.05,
+        swing: 0.92,
+        noise: 0.038,
+      },
+      {
+        stroke: "#6ec8ff",
+        fillTop: "rgba(110, 200, 255, 0.16)",
+        fillBottom: "rgba(110, 200, 255, 0.01)",
+        glow: "rgba(110, 200, 255, 0.3)",
+        baseline: 0.34,
+        amplitude: 0.11,
+        secondary: 0.06,
+        swing: 0.86,
+        noise: 0.04,
+      },
+      {
+        stroke: "#ff9e5c",
+        fillTop: "rgba(255, 158, 92, 0.14)",
+        fillBottom: "rgba(255, 158, 92, 0.01)",
+        glow: "rgba(255, 158, 92, 0.26)",
+        baseline: 0.5,
+        amplitude: 0.1,
+        secondary: 0.055,
+        swing: 1.04,
+        noise: 0.044,
+      },
+      {
+        stroke: "#c297ff",
+        fillTop: "rgba(194, 151, 255, 0.13)",
+        fillBottom: "rgba(194, 151, 255, 0.01)",
+        glow: "rgba(194, 151, 255, 0.24)",
+        baseline: 0.65,
+        amplitude: 0.085,
+        secondary: 0.05,
+        swing: 0.78,
+        noise: 0.035,
+      },
+      {
+        stroke: "#4d8dff",
+        fillTop: "rgba(77, 141, 255, 0.12)",
+        fillBottom: "rgba(77, 141, 255, 0.01)",
+        glow: "rgba(77, 141, 255, 0.24)",
+        baseline: 0.79,
+        amplitude: 0.072,
+        secondary: 0.044,
+        swing: 0.72,
+        noise: 0.03,
+      },
+    ];
+    gpu.series = palette.map((tone, index) => {
+      const series = {
+        ...tone,
+        drift: 0,
+        surge: 0,
+        phase: Math.random() * Math.PI * 2,
+        seed: Math.random() * 7 + index * 0.8,
+        values: [],
+      };
+      for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+        series.values.push(nextGpuTrafficValue(series));
+      }
+      return series;
+    });
+    gpu.scrollOffset = 0;
+  }
+
+  function advanceGpuTrafficSeries(stepCount = 1) {
+    const gpu = state.gpuTraffic;
+    if (!gpu.series.length) return;
+    const targetLength = Math.max(28, Math.ceil(gpu.width / Math.max(gpu.sampleGap, 1)) + 8);
+    for (let stepIndex = 0; stepIndex < stepCount; stepIndex += 1) {
+      gpu.series.forEach((series) => {
+        series.values.push(nextGpuTrafficValue(series));
+        while (series.values.length > targetLength) {
+          series.values.shift();
+        }
+      });
+    }
+  }
+
+  function updateGpuTrafficMetrics(force = false) {
+    const gpu = state.gpuTraffic;
+    if (!gpu.series.length) return;
+    const now = performance.now();
+    if (!force && now - gpu.metricsUpdatedAt < 240) return;
+    gpu.metricsUpdatedAt = now;
+    const lastValues = gpu.series.map((series) => Number(series.values[series.values.length - 1] || 0));
+    const previousValues = gpu.series.map((series) => Number(series.values[Math.max(0, series.values.length - 4)] || 0));
+    const compositeLoad = lastValues.reduce((sum, value) => sum + value, 0) / Math.max(lastValues.length, 1);
+    const peakValue = Math.max(...lastValues, 0);
+    const peakIndex = Math.max(0, lastValues.findIndex((value) => value === peakValue));
+    const spread = Math.max(...lastValues, 0) - Math.min(...lastValues, 0);
+    const drift = lastValues.reduce((sum, value, index) => sum + Math.abs(value - previousValues[index]), 0) / Math.max(lastValues.length, 1);
+    const windowSeconds = Math.max(1, Math.round(((gpu.series[0]?.values.length || 0) * gpu.stepMs) / 1000));
+    const stability =
+      drift < 0.018 && spread < 0.22
+        ? { label: "Stable", badgeClass: "gpu-badge gpu-badge-live" }
+        : drift < 0.04 && spread < 0.34
+          ? { label: "Adaptive", badgeClass: "gpu-badge gpu-badge-warn" }
+          : { label: "Elevated", badgeClass: "gpu-badge gpu-badge-alert" };
+
+    if (refs.gpuMetricLoad) refs.gpuMetricLoad.textContent = `${formatNumber(compositeLoad * 100)}%`;
+    if (refs.gpuMetricPeak) refs.gpuMetricPeak.textContent = `L${peakIndex + 1} · ${formatNumber(peakValue * 100)}%`;
+    if (refs.gpuMetricStability) refs.gpuMetricStability.textContent = stability.label;
+    if (refs.gpuMetricCadence) refs.gpuMetricCadence.textContent = `${formatNumber(gpu.stepMs)} ms`;
+    if (refs.gpuMetricWindow) refs.gpuMetricWindow.textContent = `${formatNumber(windowSeconds)} s`;
+    if (refs.gpuStatusBadge) {
+      refs.gpuStatusBadge.className = stability.badgeClass;
+      refs.gpuStatusBadge.textContent = stability.label;
+    }
+    if (refs.gpuLaneBadge) refs.gpuLaneBadge.textContent = `${formatNumber(gpu.series.length)} lanes`;
+    if (refs.gpuTrafficMeta) refs.gpuTrafficMeta.textContent = `Spread ${formatNumber(spread * 100)}% · Drift ${formatNumber(drift * 100, 1)} pts`;
+  }
+
+  function nextGpuTrafficValue(series) {
+    series.phase += series.swing * 0.085;
+    series.drift = clamp(series.drift + (Math.random() - 0.5) * series.noise * 1.6, -0.24, 0.24);
+    series.surge = Math.max(0, series.surge * 0.82 - 0.006);
+    if (Math.random() > 0.988) {
+      series.surge = 0.04 + Math.random() * 0.09;
+    }
+    const primaryWave = Math.sin(series.phase + series.seed) * series.amplitude;
+    const secondaryWave = Math.sin(series.phase * 0.43 + series.seed * 1.7) * series.secondary;
+    const longWave = Math.sin(series.phase * 0.11 + series.seed * 2.8) * 0.048;
+    const microNoise = (Math.random() - 0.5) * series.noise;
+    return clamp(series.baseline + primaryWave + secondaryWave + longWave + series.drift * 0.34 + series.surge + microNoise, 0.04, 0.96);
+  }
+
+  function drawGpuTrafficVisualizer() {
+    const gpu = state.gpuTraffic;
+    if (!gpu.ctx || !gpu.width || !gpu.height || !gpu.series.length) return;
+    const ctx = gpu.ctx;
+    const width = gpu.width;
+    const height = gpu.height;
+    const plotTop = 16;
+    const plotBottom = height - 18;
+    const plotHeight = plotBottom - plotTop;
+    ctx.clearRect(0, 0, width, height);
+
+    const ambientGlow = ctx.createRadialGradient(width * 0.18, height * 0.08, 0, width * 0.18, height * 0.08, width * 0.72);
+    ambientGlow.addColorStop(0, "rgba(102, 241, 196, 0.05)");
+    ambientGlow.addColorStop(0.58, "rgba(91, 166, 255, 0.035)");
+    ambientGlow.addColorStop(1, "rgba(8, 16, 23, 0)");
+    ctx.fillStyle = ambientGlow;
+    ctx.fillRect(0, 0, width, height);
+
+    for (let guideIndex = 1; guideIndex <= 4; guideIndex += 1) {
+      const y = plotTop + (plotHeight / 5) * guideIndex;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.strokeStyle = guideIndex === 4 ? "rgba(194, 221, 231, 0.065)" : "rgba(194, 221, 231, 0.045)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    gpu.series.forEach((series) => {
+      const points = series.values.map((value, index) => ({
+        x: width - (series.values.length - 1 - index) * gpu.sampleGap - gpu.scrollOffset,
+        y: plotTop + (1 - value) * plotHeight,
+      }));
+      drawGpuTrafficArea(ctx, points, plotBottom, series);
+      drawGpuTrafficLine(ctx, points, series);
+      drawGpuTrafficPulse(ctx, points[points.length - 1], series);
+    });
+
+    const edgeGlow = ctx.createLinearGradient(width - 68, 0, width, 0);
+    edgeGlow.addColorStop(0, "rgba(255, 255, 255, 0)");
+    edgeGlow.addColorStop(1, "rgba(255, 255, 255, 0.08)");
+    ctx.fillStyle = edgeGlow;
+    ctx.fillRect(width - 68, 0, 68, height);
+  }
+
+  function drawGpuTrafficArea(ctx, points, baseY, series) {
+    if (points.length < 2) return;
+    const fillGradient = ctx.createLinearGradient(0, 0, 0, baseY);
+    fillGradient.addColorStop(0, series.fillTop);
+    fillGradient.addColorStop(1, series.fillBottom);
+    ctx.save();
+    ctx.beginPath();
+    traceGpuTrafficPath(ctx, points);
+    ctx.lineTo(points[points.length - 1].x, baseY);
+    ctx.lineTo(points[0].x, baseY);
+    ctx.closePath();
+    ctx.fillStyle = fillGradient;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGpuTrafficLine(ctx, points, series) {
+    if (points.length < 2) return;
+    ctx.save();
+    ctx.beginPath();
+    traceGpuTrafficPath(ctx, points);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = series.stroke;
+    ctx.shadowColor = series.glow;
+    ctx.shadowBlur = 12;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawGpuTrafficPulse(ctx, point, series) {
+    if (!point) return;
+    ctx.save();
+    const glow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 10);
+    glow.addColorStop(0, "rgba(255, 255, 255, 0.88)");
+    glow.addColorStop(0.28, series.stroke);
+    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f8feff";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function traceGpuTrafficPath(ctx, points) {
+    if (!points.length) return;
+    ctx.moveTo(points[0].x, points[0].y);
+    if (points.length === 1) return;
+    if (points.length === 2) {
+      ctx.lineTo(points[1].x, points[1].y);
+      return;
+    }
+    for (let index = 1; index < points.length - 1; index += 1) {
+      const midX = (points[index].x + points[index + 1].x) / 2;
+      const midY = (points[index].y + points[index + 1].y) / 2;
+      ctx.quadraticCurveTo(points[index].x, points[index].y, midX, midY);
+    }
+    const penultimate = points[points.length - 2];
+    const last = points[points.length - 1];
+    ctx.quadraticCurveTo(penultimate.x, penultimate.y, last.x, last.y);
+  }
+
+  function renderTotalRegistrationsPie(totalUsers, latestDateKey, animate = false) {
+    const total = clampNumber(totalUsers, 0, 1000000000);
+    const target = buildMilestoneTarget(total);
+    const remaining = Math.max(target - total, 0);
+    const ratio = target > 0 ? clamp(total / target, 0, 1) : 0;
+    renderInsightPie(
+      refs.totalRegistrationsPie,
+      {
+        ariaLabel: "Registered users to date chart",
+        tone: {
+          start: "#0e9f90",
+          end: "#09746a",
+          soft: "rgba(14, 159, 144, 0.16)",
+          softAlt: "rgba(14, 159, 144, 0.1)",
+          glow: "rgba(14, 159, 144, 0.24)",
+        },
+        ratio,
+        valueText: formatNumber(total),
+        caption: "Registered users",
+        badge: `${formatNumber(ratio * 100, 1)}% to ${formatNumber(target)}`,
+        rows: [
+          {
+            label: "Current total",
+            value: `${formatNumber(total)} cumulative users`,
+            note: latestDateKey ? `Latest report ${formatDayKeyLabel(latestDateKey)}` : "Waiting for the first report",
+          },
+          {
+            label: "Next milestone",
+            value: `${formatNumber(remaining)} users remaining`,
+            note: `Target ${formatNumber(target)} users`,
+          },
+        ],
+      },
+      animate
+    );
+  }
+
+  function renderAverageDailyUsersPie(averageDailyUsers, peakDailyUsers, peakDayKey, trackedDays, animate = false) {
+    const average = Math.max(0, Number(averageDailyUsers) || 0);
+    const roundedAverage = clampNumber(Math.round(average), 0, 1000000000);
+    const peak = clampNumber(peakDailyUsers, 0, 1000000000);
+    const chartMax = Math.max(peak, roundedAverage, 1);
+    const ratio = chartMax > 0 ? clamp(average / chartMax, 0, 1) : 0;
+    renderInsightPie(
+      refs.avgDailyUsersPie,
+      {
+        ariaLabel: "Average daily users chart",
+        tone: {
+          start: "#2e78ff",
+          end: "#1750b8",
+          soft: "rgba(46, 120, 255, 0.14)",
+          softAlt: "rgba(23, 80, 184, 0.08)",
+          glow: "rgba(46, 120, 255, 0.22)",
+        },
+        ratio,
+        valueText: formatNumber(roundedAverage),
+        caption: "Avg users / day",
+        badge: `${formatNumber(ratio * 100, 1)}% of peak day`,
+        rows: [
+          {
+            label: "Rounded average",
+            value: `${formatNumber(roundedAverage)} users per day`,
+            note: `Across ${formatNumber(trackedDays)} reported days`,
+          },
+          {
+            label: "Precise average",
+            value: `${formatNumber(average, 1)} active users`,
+            note: "Rounded visually to the nearest whole user",
+          },
+          {
+            label: "Peak daily activity",
+            value: `${formatNumber(peak)} users`,
+            note: peakDayKey ? formatDayKeyLabel(peakDayKey) : "No peak day yet",
+          },
+        ],
+      },
+      animate
+    );
+  }
+
+  function renderAverageUsageInsightPie(averageUsageMinutes, peakUsageMinutes, peakDayKey, latestUsageMinutes, latestDateKey, trackedDays, animate = false) {
+    const averageUsage = Math.max(0, Number(averageUsageMinutes) || 0);
+    const peakUsage = clampNumber(peakUsageMinutes, 0, 1000000000);
+    const latestUsage = clampNumber(latestUsageMinutes, 0, 1000000000);
+    const chartMax = Math.max(peakUsage, Math.ceil(averageUsage), 1);
+    const ratio = chartMax > 0 ? clamp(averageUsage / chartMax, 0, 1) : 0;
+    renderInsightPie(
+      refs.avgUsagePie,
+      {
+        ariaLabel: "Average usage time chart",
+        tone: {
+          start: "#de7d32",
+          end: "#b35f1d",
+          soft: "rgba(222, 125, 50, 0.16)",
+          softAlt: "rgba(179, 95, 29, 0.09)",
+          glow: "rgba(222, 125, 50, 0.24)",
+        },
+        ratio,
+        valueText: `${formatMetricNumber(averageUsage)}m`,
+        caption: "Avg usage time",
+        badge: `${formatNumber(ratio * 100, 1)}% of best usage day`,
+        rows: [
+          {
+            label: "Average usage",
+            value: `${formatMetricNumber(averageUsage)} min / day`,
+            note: `Across ${formatNumber(trackedDays)} reported days`,
+          },
+          {
+            label: "Peak usage day",
+            value: `${formatNumber(peakUsage)} min`,
+            note: peakDayKey ? formatDayKeyLabel(peakDayKey) : "No peak day yet",
+          },
+          {
+            label: "Latest reported day",
+            value: `${formatNumber(latestUsage)} min`,
+            note: latestDateKey ? formatDayKeyLabel(latestDateKey) : "Waiting for the first report",
+          },
+        ],
+      },
+      animate
+    );
+  }
+
+  function renderInsightPie(container, config, animate = false) {
+    if (!container) return;
+    setChartAnimationState(container, animate);
+    const tone = config?.tone || {};
+    const ratio = clamp(config?.ratio || 0, 0, 1);
+    const radius = 74;
+    const cx = 120;
+    const cy = 120;
+    const circumference = 2 * Math.PI * radius;
+    const activeArc = Math.max(0, Math.min(circumference, circumference * ratio));
+    const gapArc = Math.max(0, circumference - activeArc);
+    const gradientId = `${container.id || "insightPie"}Gradient`;
+    const rows = Array.isArray(config?.rows) ? config.rows : [];
+    container.innerHTML = `
+      <div
+        class="radial-stat-shell"
+        style="
+          --tone-start:${escapeHtml(tone.start || "#0e9f90")};
+          --tone-end:${escapeHtml(tone.end || "#09746a")};
+          --tone-soft:${escapeHtml(tone.soft || "rgba(14, 159, 144, 0.16)")};
+          --tone-soft-alt:${escapeHtml(tone.softAlt || tone.soft || "rgba(14, 159, 144, 0.1)")};
+          --tone-glow:${escapeHtml(tone.glow || "rgba(14, 159, 144, 0.24)")};
+        "
+      >
+        <div class="radial-stat-orbit">
+          <svg class="radial-stat-svg" viewBox="0 0 240 240" role="img" aria-label="${escapeHtml(config?.ariaLabel || "Insight chart")}">
+            <defs>
+              <linearGradient id="${escapeHtml(gradientId)}" x1="12%" y1="8%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="${escapeHtml(tone.start || "#0e9f90")}"></stop>
+                <stop offset="100%" stop-color="${escapeHtml(tone.end || "#09746a")}"></stop>
+              </linearGradient>
+            </defs>
+            <circle class="radial-stat-inner-track" cx="${cx}" cy="${cy}" r="${radius - 28}"></circle>
+            <circle class="radial-stat-track" cx="${cx}" cy="${cy}" r="${radius}"></circle>
+            <circle
+              class="radial-stat-arc"
+              cx="${cx}"
+              cy="${cy}"
+              r="${radius}"
+              stroke="url(#${escapeHtml(gradientId)})"
+              stroke-dasharray="${activeArc} ${gapArc}"
+            ></circle>
+            <text class="radial-stat-value" x="${cx}" y="${cy - 2}" text-anchor="middle">${escapeHtml(config?.valueText || "-")}</text>
+            <text class="radial-stat-caption" x="${cx}" y="${cy + 24}" text-anchor="middle">${escapeHtml(config?.caption || "")}</text>
+          </svg>
+          <div class="radial-stat-badge">${escapeHtml(config?.badge || "")}</div>
+        </div>
+        <div class="radial-stat-meta">
+          ${rows
+            .map(
+              (row, index) => `
+                <div class="radial-stat-row" style="--item-index:${index}">
+                  <span class="radial-stat-dot"></span>
+                  <div>
+                    <span class="radial-stat-label">${escapeHtml(row?.label || "")}</span>
+                    <span class="radial-stat-text">${escapeHtml(row?.value || "-")}</span>
+                    <span class="radial-stat-note">${escapeHtml(row?.note || "")}</span>
+                  </div>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+    if (animate) {
+      primeSvgMotion(container, {
+        drawSelectors: [],
+        arcSelectors: [".radial-stat-arc"],
+      });
+    }
+  }
+
+  function buildMilestoneTarget(totalUsers) {
+    const total = clampNumber(totalUsers, 0, 1000000000);
+    if (total < 50) return 50;
+    if (total < 100) return 100;
+    const magnitude = 10 ** Math.floor(Math.log10(Math.max(total, 1)));
+    const step = total / magnitude < 3 ? magnitude / 2 : magnitude;
+    let target = Math.ceil(total / step) * step;
+    if (target <= total) target += step;
+    return clampNumber(target, 1, 1000000000);
+  }
+
+  function formatMetricNumber(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "-";
+    const decimals = Math.abs(numeric - Math.round(numeric)) < 0.05 ? 0 : 1;
+    return formatNumber(numeric, decimals);
   }
 
   function renderLineChart(series, unitLabel, animate = false) {
@@ -640,91 +1184,6 @@
       });
       el.addEventListener("blur", hideTooltip);
     });
-  }
-
-  function renderSnapshotPie(dailyActiveUsers, totalUsers, latestDateKey, animate = false) {
-    if (!refs.liveSessionPie) return;
-    setChartAnimationState(refs.liveSessionPie, animate);
-    const active = clampNumber(dailyActiveUsers, 0, 1000000000);
-    const total = clampNumber(totalUsers, 0, 1000000000);
-    const chartTotal = Math.max(total, active, 1);
-    const inactive = Math.max(total - active, 0);
-    const ratio = chartTotal > 0 ? clamp(active / chartTotal, 0, 1) : 0;
-    const percent = total > 0 ? (active / total) * 100 : 0;
-    const radius = 68;
-    const cx = 120;
-    const cy = 114;
-    const circumference = 2 * Math.PI * radius;
-    const activeArc = Math.max(0, Math.min(circumference, circumference * ratio));
-    const gapArc = Math.max(0, circumference - activeArc);
-    refs.liveSessionPie.innerHTML = `
-      <div class="pie-chart-shell">
-        <svg class="pie-chart-svg" viewBox="0 0 240 228" role="img" aria-label="Current user snapshot chart">
-          <circle class="pie-track" cx="${cx}" cy="${cy}" r="${radius}"></circle>
-          <circle class="pie-active" style="--arc-end:0" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${activeArc} ${gapArc}"></circle>
-          <text class="pie-center-top" x="${cx}" y="${cy - 3}" text-anchor="middle">${formatNumber(active)}/${formatNumber(total)}</text>
-          <text class="pie-center-bottom" x="${cx}" y="${cy + 21}" text-anchor="middle">${formatNumber(percent, 1)}% Active</text>
-        </svg>
-        <div class="pie-legend">
-          <div class="pie-legend-row" style="--item-index:0"><span class="pie-dot in-use"></span><span>Daily Active: ${formatNumber(active)}</span></div>
-          <div class="pie-legend-row" style="--item-index:1"><span class="pie-dot available"></span><span>Inactive Now: ${formatNumber(inactive)}</span></div>
-          <div class="pie-legend-row" style="--item-index:2"><span>Latest Report: ${escapeHtml(latestDateKey ? formatDayKeyLabel(latestDateKey) : "No data")}</span></div>
-        </div>
-      </div>
-    `;
-    if (animate) {
-      primeSvgMotion(refs.liveSessionPie, {
-        drawSelectors: [],
-        arcSelectors: [".pie-active"],
-      });
-    }
-  }
-
-  function renderLoginStatusPie(localUsers, onlineUsers, totalUsers, latestDateKey, animate = false) {
-    if (!refs.loginStatusPie) return;
-    setChartAnimationState(refs.loginStatusPie, animate);
-    const total = clampNumber(totalUsers, 0, 1000000000);
-    const local = clampNumber(localUsers, 0, 1000000000);
-    const online = clampNumber(onlineUsers, 0, 1000000000);
-    const chartTotal = Math.max(total, local + online, 1);
-    const localRatio = chartTotal > 0 ? clamp(local / chartTotal, 0, 1) : 0;
-    const onlineRatio = chartTotal > 0 ? clamp(online / chartTotal, 0, 1) : 0;
-    const radius = 68;
-    const cx = 120;
-    const cy = 114;
-    const circumference = 2 * Math.PI * radius;
-    const localArc = Math.max(0, Math.min(circumference, circumference * localRatio));
-    const onlineArc = Math.max(0, Math.min(circumference, circumference * onlineRatio));
-    const localPercent = total > 0 ? (local / total) * 100 : 0;
-    const onlinePercent = total > 0 ? (online / total) * 100 : 0;
-    refs.loginStatusPie.innerHTML = `
-      <div class="pie-chart-shell">
-        <svg class="pie-chart-svg" viewBox="0 0 240 228" role="img" aria-label="Login status chart">
-          <circle class="pie-track" cx="${cx}" cy="${cy}" r="${radius}"></circle>
-          <circle class="pie-segment-local" style="--arc-end:0" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${localArc} ${Math.max(
-            circumference - localArc,
-            0
-          )}"></circle>
-          <circle class="pie-segment-online" style="--arc-end:${-localArc}" cx="${cx}" cy="${cy}" r="${radius}" stroke-dasharray="${onlineArc} ${Math.max(
-            circumference - onlineArc,
-            0
-          )}" stroke-dashoffset="${-localArc}"></circle>
-          <text class="pie-center-top" x="${cx}" y="${cy - 3}" text-anchor="middle">${formatNumber(total)}</text>
-          <text class="pie-center-bottom" x="${cx}" y="${cy + 21}" text-anchor="middle">Total Users</text>
-        </svg>
-        <div class="pie-legend">
-          <div class="pie-legend-row" style="--item-index:0"><span class="pie-dot local-login"></span><span>Local: ${formatNumber(local)} (${formatNumber(localPercent, 1)}%)</span></div>
-          <div class="pie-legend-row" style="--item-index:1"><span class="pie-dot online-login"></span><span>Online: ${formatNumber(online)} (${formatNumber(onlinePercent, 1)}%)</span></div>
-          <div class="pie-legend-row" style="--item-index:2"><span>Latest Report: ${escapeHtml(latestDateKey ? formatDayKeyLabel(latestDateKey) : "No data")}</span></div>
-        </div>
-      </div>
-    `;
-    if (animate) {
-      primeSvgMotion(refs.loginStatusPie, {
-        drawSelectors: [],
-        arcSelectors: [".pie-segment-local", ".pie-segment-online"],
-      });
-    }
   }
 
   function renderActiveBar(series, animate = false) {
@@ -957,75 +1416,12 @@
     bindChartPointTooltips(refs.avgUsageChart, ".usage-chart-point");
   }
 
-  function renderSummaryStats(container, items, emptyText) {
-    if (!container) return;
-    if (!items.length) {
-      container.innerHTML = `<p class="empty-note">${escapeHtml(emptyText)}</p>`;
-      return;
-    }
-    container.innerHTML = items
-      .map(
-        (item) => `
-          <div class="summary-row">
-            <span class="summary-label">${escapeHtml(item.label)}</span>
-            <span class="summary-value">${escapeHtml(item.value)}</span>
-            <span class="summary-note">${escapeHtml(item.note)}</span>
-          </div>
-        `
-      )
-      .join("");
-  }
-
-  function buildRegistrationSummary(rangeNewUsers, rangeLabel) {
-    return [
-      { label: "Total New Users", value: formatNumber(state.summary.totalNewUsers), note: `Across ${formatNumber(state.summary.trackedDays)} tracked days` },
-      { label: "Avg / Day", value: formatNumber(state.summary.averageNewUsers, 1), note: "Whole data file" },
-      { label: "Peak Day", value: formatNumber(state.summary.peakNewUsers), note: formatDayKeyLabel(state.summary.peakNewDateKey) },
-      { label: "Full Range", value: formatNumber(rangeNewUsers), note: rangeLabel },
-    ];
-  }
-
-  function buildUsageSummary() {
-    const activeRate =
-      state.summary.latestTotalUsers > 0
-        ? (state.summary.latestDailyActiveUsers / state.summary.latestTotalUsers) * 100
-        : 0;
-    const localRate = state.summary.latestTotalUsers > 0 ? (state.summary.latestLocalUsers / state.summary.latestTotalUsers) * 100 : 0;
-    const onlineRate = state.summary.latestTotalUsers > 0 ? (state.summary.latestOnlineUsers / state.summary.latestTotalUsers) * 100 : 0;
-    return [
-      { label: "Latest Active Rate", value: `${formatNumber(activeRate, 1)}%`, note: formatDayKeyLabel(state.summary.latestDateKey) },
-      { label: "Latest Avg Usage", value: `${formatNumber(state.summary.latestAverageUsageMinutes)} min`, note: `Daily average on ${formatDayKeyLabel(state.summary.latestDateKey)}` },
-      { label: "Login Mix", value: `${formatNumber(state.summary.latestLocalUsers)} / ${formatNumber(state.summary.latestOnlineUsers)}`, note: `${formatNumber(localRate, 1)}% local, ${formatNumber(onlineRate, 1)}% online` },
-      { label: "Peak Usage Day", value: `${formatNumber(state.summary.peakAverageUsageMinutes)} min`, note: formatDayKeyLabel(state.summary.peakAverageUsageDateKey) },
-      { label: "Avg Active / Day", value: formatNumber(state.summary.averageDailyActiveUsers, 1), note: `Across ${formatNumber(state.summary.trackedDays)} tracked days` },
-    ];
-  }
-
-  function buildStaticRangeLabel(days) {
-    if (!Array.isArray(days) || !days.length) return "No timeline data";
-    return `${formatDateOnly(days[0].dateMs)} -> ${formatDateOnly(days[days.length - 1].dateMs)} (full range)`;
-  }
-
   function toSeries(days, field) {
     return days.map((day) => ({
       count: clampNumber(Number(day[field]) || 0, 0, 1000000000),
       shortLabel: formatCompactDate(day.dateMs),
       tooltipLabel: formatDateOnly(day.dateMs),
     }));
-  }
-
-  function sumBy(days, field) {
-    let total = 0;
-    for (const day of days) total += Number(day[field]) || 0;
-    return total;
-  }
-
-  function buildDayDeltaText(todayCount, yesterdayCount) {
-    const diff = todayCount - yesterdayCount;
-    if (yesterdayCount === 0) return todayCount === 0 ? "0" : `+${formatNumber(diff)} / +100%`;
-    const pct = (diff / yesterdayCount) * 100;
-    const sign = diff >= 0 ? "+" : "";
-    return `${sign}${formatNumber(diff)} / ${sign}${formatNumber(pct, 1)}%`;
   }
 
   function formatDateOnly(input) {
@@ -1226,6 +1622,23 @@
   function measureChartWidth(containerEl, minWidth = 320) {
     const width = Math.floor(containerEl?.clientWidth || containerEl?.getBoundingClientRect?.().width || 0);
     return Math.max(minWidth, width);
+  }
+
+  function createGpuTrafficState() {
+    return {
+      rafId: 0,
+      canvas: null,
+      ctx: null,
+      width: 0,
+      height: 0,
+      dpr: 1,
+      sampleGap: 22,
+      stepMs: 680,
+      scrollOffset: 0,
+      lastFrameAt: 0,
+      metricsUpdatedAt: 0,
+      series: [],
+    };
   }
 
   function emptySummary() {

@@ -67,7 +67,60 @@
 
       <main class="dashboard-shell">
         <div id="dashboardContent" class="dashboard-content hidden">
-          <section class="grid-two reveal delay-1">
+          <section class="reveal delay-1">
+            <article class="panel gpu-traffic-panel">
+              <div class="chart-frame gpu-traffic-frame">
+                <div class="gpu-traffic-head">
+                  <div class="gpu-traffic-heading">
+                    <h2 class="chart-frame-title">GPU Traffic Flow</h2>
+                  </div>
+                  <div class="gpu-traffic-badges" aria-label="GPU monitor badges">
+                    <span id="gpuStatusBadge" class="gpu-badge gpu-badge-live">Stable</span>
+                    <span id="gpuLaneBadge" class="gpu-badge">5 lanes</span>
+                  </div>
+                </div>
+
+                <div class="gpu-traffic-shell">
+                  <div id="gpuTrafficChart" class="gpu-traffic-wrap">
+                    <canvas id="gpuTrafficCanvas" class="gpu-traffic-canvas" aria-label="Animated GPU traffic flow chart"></canvas>
+                  </div>
+
+                  <aside class="gpu-traffic-rail" aria-label="GPU traffic insights">
+                    <div class="gpu-metric-grid">
+                      <article class="gpu-metric-card">
+                        <p class="gpu-metric-label">Load</p>
+                        <p id="gpuMetricLoad" class="gpu-metric-value">-</p>
+                      </article>
+
+                      <article class="gpu-metric-card">
+                        <p class="gpu-metric-label">Peak Lane</p>
+                        <p id="gpuMetricPeak" class="gpu-metric-value">-</p>
+                      </article>
+
+                      <article class="gpu-metric-card">
+                        <p class="gpu-metric-label">Stability</p>
+                        <p id="gpuMetricStability" class="gpu-metric-value">-</p>
+                      </article>
+
+                      <article class="gpu-metric-card">
+                        <p class="gpu-metric-label">Cadence</p>
+                        <p id="gpuMetricCadence" class="gpu-metric-value">-</p>
+                      </article>
+
+                      <article class="gpu-metric-card gpu-metric-card-wide">
+                        <p class="gpu-metric-label">Window</p>
+                        <p id="gpuMetricWindow" class="gpu-metric-value">-</p>
+                      </article>
+                    </div>
+
+                    <p id="gpuTrafficMeta" class="gpu-traffic-meta">Spread - · Drift -</p>
+                  </aside>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section class="grid-two reveal delay-2">
             <article class="panel chart-panel">
               <div class="chart-frame">
                 <div class="chart-frame-head">
@@ -78,92 +131,57 @@
                 </div>
               </div>
 
-              <div class="chart-mini-grid">
+              <div class="insight-pie-grid">
+                <div class="chart-frame insight-frame">
+                  <div class="subchart-head subchart-head-insight">
+                    <p class="subchart-kicker">Live Total</p>
+                    <h3 class="subchart-title">Registered Users to Date</h3>
+                  </div>
+                  <div id="totalRegistrationsPie" class="subchart-wrap pie-wrap insight-wrap">
+                    <p class="empty-note">Loading chart...</p>
+                  </div>
+                </div>
+
+                <div class="chart-frame insight-frame">
+                  <div class="subchart-head subchart-head-insight">
+                    <p class="subchart-kicker">Rounded Average</p>
+                    <h3 class="subchart-title">Average Daily Users</h3>
+                  </div>
+                  <div id="avgDailyUsersPie" class="subchart-wrap pie-wrap insight-wrap">
+                    <p class="empty-note">Loading chart...</p>
+                  </div>
+                </div>
+
+                <div class="chart-frame insight-frame">
+                  <div class="subchart-head subchart-head-insight">
+                    <p class="subchart-kicker">Engagement Baseline</p>
+                    <h3 class="subchart-title">Average Usage Time</h3>
+                  </div>
+                  <div id="avgUsagePie" class="subchart-wrap pie-wrap insight-wrap">
+                    <p class="empty-note">Loading chart...</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="secondary-chart-grid">
                 <div class="chart-frame">
                   <div class="subchart-head">
-                    <h3 class="subchart-title">Current User Snapshot</h3>
+                    <h3 class="subchart-title">Daily Active Users by Day</h3>
                   </div>
-                  <div id="liveSessionPie" class="subchart-wrap pie-wrap">
+                  <div id="frequentUsersBar" class="subchart-wrap bar-wrap">
                     <p class="empty-note">Loading chart...</p>
                   </div>
                 </div>
 
                 <div class="chart-frame">
                   <div class="subchart-head">
-                    <h3 class="subchart-title">Login Status by Type</h3>
+                    <h3 class="subchart-title">Average Usage Time by Day</h3>
                   </div>
-                  <div id="loginStatusPie" class="subchart-wrap pie-wrap">
+                  <div id="avgUsageChart" class="daily-chart usage-chart">
                     <p class="empty-note">Loading chart...</p>
                   </div>
                 </div>
               </div>
-
-              <div class="chart-frame">
-                <div class="subchart-head">
-                  <h3 class="subchart-title">Daily Active Users by Day</h3>
-                </div>
-                <div id="frequentUsersBar" class="subchart-wrap bar-wrap">
-                  <p class="empty-note">Loading chart...</p>
-                </div>
-              </div>
-
-              <div class="chart-frame">
-                <div class="subchart-head">
-                  <h3 class="subchart-title">Average Usage Time by Day</h3>
-                </div>
-                <div id="avgUsageChart" class="daily-chart usage-chart">
-                  <p class="empty-note">Loading chart...</p>
-                </div>
-              </div>
-            </article>
-
-            <article class="panel distribution-panel">
-              <div class="distribution-block">
-                <div class="panel-header mini">
-                  <h3>Registration Summary</h3>
-                </div>
-                <div id="statusDistribution" class="distribution-list"></div>
-              </div>
-
-              <div class="distribution-block">
-                <div class="panel-header mini">
-                  <h3>Usage Summary</h3>
-                </div>
-                <div id="providerDistribution" class="distribution-list"></div>
-              </div>
-            </article>
-          </section>
-
-          <section class="metric-grid reveal delay-3">
-            <article class="metric-card accent-teal">
-              <p class="metric-label">New Users Latest Day</p>
-              <p id="newTodayMetric" class="metric-value">-</p>
-              <p class="metric-footnote">Registrations on the latest reported day.</p>
-            </article>
-            <article class="metric-card">
-              <p class="metric-label">Current Total Users</p>
-              <p id="totalUsersMetric" class="metric-value">-</p>
-              <p class="metric-footnote">Cumulative sum of all registrations in the text file.</p>
-            </article>
-            <article class="metric-card">
-              <p class="metric-label">New Users In Full Range</p>
-              <p id="rangeUsersMetric" class="metric-value">-</p>
-              <p id="rangeLabelMetric" class="metric-footnote">Current full file range.</p>
-            </article>
-            <article class="metric-card">
-              <p class="metric-label">Avg New Users / Day</p>
-              <p id="dailyAvgMetric" class="metric-value">-</p>
-              <p class="metric-footnote">Average registrations across visible days.</p>
-            </article>
-            <article class="metric-card">
-              <p class="metric-label">Daily Active Users</p>
-              <p id="activeUsersMetric" class="metric-value">-</p>
-              <p class="metric-footnote">Usage count on the latest reported day.</p>
-            </article>
-            <article class="metric-card accent-orange">
-              <p class="metric-label">Vs Previous Day</p>
-              <p id="dayDeltaMetric" class="metric-value">-</p>
-              <p class="metric-footnote">Latest registration delta compared to the previous day.</p>
             </article>
           </section>
         </div>
